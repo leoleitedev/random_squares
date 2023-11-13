@@ -1,36 +1,13 @@
 "use client";
 
 import { generateBoolean, getRandomNumber } from "./helpers";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import styles from "./page.module.css";
 
 const screenPadding = 50;
 const containerBorder = 10;
 const sidebarWidth = 350;
-
-const DEFAULT_CONFIG = {
-	pixelMovement: { value: 20, label: "Movement Distance", min: 1, max: 100 },
-	speed: { value: 100, label: "Movement Frequency", min: 1, max: 1000 },
-	amountOfBoxes: { value: 1, label: "Number of Boxes", min: 1, max: 1000 },
-	containerDimensionX: {
-		value: 300,
-		label: "Container Width",
-		min: 100,
-		max:
-			window.innerWidth -
-			screenPadding * 2 -
-			containerBorder * 2 -
-			sidebarWidth,
-	},
-	containerDimensionY: {
-		value: 300,
-		label: "Container Height",
-		min: 100,
-		max: window.innerHeight - screenPadding * 2 - containerBorder * 2,
-	},
-	boxSize: { value: 20, label: "Box Size", min: 1, max: 100 },
-};
 
 const getMaxY = (config: Config): number => {
 	return config.containerDimensionY.value - config.boxSize.value;
@@ -177,6 +154,48 @@ const reArrangeBoxesOnResize = (boxes: Box[], config: Config) => {
 };
 
 export default function Home() {
+	let maxContainerY = 500;
+	let maxContainerX = 500;
+
+	if (typeof window !== "undefined") {
+		maxContainerY =
+			window.innerHeight - screenPadding * 2 - containerBorder * 2;
+
+		maxContainerX =
+			window.innerWidth -
+			screenPadding * 2 -
+			containerBorder * 2 -
+			sidebarWidth;
+	} else {
+		console.log(typeof window);
+	}
+
+	const DEFAULT_CONFIG = useMemo(() => {
+		return {
+			pixelMovement: {
+				value: 20,
+				label: "Movement Distance",
+				min: 1,
+				max: 100,
+			},
+			speed: { value: 100, label: "Movement Frequency", min: 1, max: 1000 },
+			amountOfBoxes: { value: 1, label: "Number of Boxes", min: 1, max: 1000 },
+			containerDimensionX: {
+				value: 300,
+				label: "Container Width",
+				min: 100,
+				max: maxContainerX,
+			},
+			containerDimensionY: {
+				value: 300,
+				label: "Container Height",
+				min: 100,
+				max: maxContainerY,
+			},
+			boxSize: { value: 20, label: "Box Size", min: 1, max: 100 },
+		};
+	}, []);
+
 	const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
 	const [boxes, setBoxes] = useState<Box[]>(generateBoxes(config));
 	const [on, setOn] = useState<boolean>(true);
@@ -193,6 +212,9 @@ export default function Home() {
 		return () => clearInterval(intervalId); // Cleanup the interval on component unmount
 	}, [boxes, config, on]);
 
+	useEffect(() => {
+		setConfig(DEFAULT_CONFIG);
+	}, [DEFAULT_CONFIG]);
 	return (
 		<div>
 			<div className={styles.sidebar}>
