@@ -1,95 +1,299 @@
-import Image from 'next/image'
-import styles from './page.module.css'
+"use client";
+
+import { generateBoolean, getRandomNumber } from "./helpers";
+import { useEffect, useState } from "react";
+
+import styles from "./page.module.css";
+
+const screenPadding = 50;
+const containerBorder = 10;
+const sidebarWidth = 350;
+
+const DEFAULT_CONFIG = {
+	pixelMovement: { value: 20, label: "Movement Distance", min: 1, max: 100 },
+	speed: { value: 100, label: "Movement Frequency", min: 1, max: 1000 },
+	amountOfBoxes: { value: 1, label: "Number of Boxes", min: 1, max: 1000 },
+	containerDimensionX: {
+		value: 300,
+		label: "Container Width",
+		min: 100,
+		max:
+			window.innerWidth -
+			screenPadding * 2 -
+			containerBorder * 2 -
+			sidebarWidth,
+	},
+	containerDimensionY: {
+		value: 300,
+		label: "Container Height",
+		min: 100,
+		max: window.innerHeight - screenPadding * 2 - containerBorder * 2,
+	},
+	boxSize: { value: 20, label: "Box Size", min: 1, max: 100 },
+};
+
+const getMaxY = (config: Config): number => {
+	return config.containerDimensionY.value - config.boxSize.value;
+};
+const getMaxX = (config: Config): number => {
+	return config.containerDimensionX.value - config.boxSize.value;
+};
+
+const validateMovement = (
+	position: number, // either current x or y
+	desiredPosition: number, // desired position of either x or y
+	axisLength: number, // dimension of the container in either x or y
+	boxSize: number
+) => {
+	if (desiredPosition < position) {
+		// wanting to go down or left
+		if (desiredPosition >= 0) {
+			return desiredPosition;
+		} else {
+			return 0;
+		}
+	}
+	if (desiredPosition > position) {
+		// wanting to go up or right
+		if (desiredPosition <= axisLength - boxSize) {
+			return desiredPosition;
+		} else {
+			return axisLength - boxSize;
+		}
+	}
+	return position;
+};
+
+const move = (x: number, y: number, config: Config) => {
+	// Use randomness to define whether to go up or down
+	const willMoveX = generateBoolean() ? true : false;
+	const willMoveY = generateBoolean() ? true : false;
+
+	const directionX = willMoveX ? (generateBoolean() ? "left" : "right") : false;
+	const directionY = willMoveY ? (generateBoolean() ? "up" : "down") : false;
+
+	let resultX = Number(`${x}`);
+	let resultY = Number(`${y}`);
+
+	if (directionY) {
+		let movement = getRandomNumber(1, config.pixelMovement.value);
+		if (directionY === "down") movement *= -1;
+		resultY = validateMovement(
+			resultY,
+			resultY + movement,
+			config.containerDimensionY.value,
+			config.boxSize.value
+		);
+	}
+	if (directionX) {
+		let movement = getRandomNumber(1, config.pixelMovement.value);
+		if (directionX === "left") movement *= -1;
+		resultX = validateMovement(
+			resultX,
+			resultX + movement,
+			config.containerDimensionX.value,
+			config.boxSize.value
+		);
+	}
+
+	return { x: resultX, y: resultY };
+};
+
+const setter = (
+	boxes: Box[],
+	setBoxes: React.Dispatch<React.SetStateAction<Box[]>>,
+	config: Config,
+	isSoundOn: boolean
+) => {
+	if (!boxes) return boxes;
+
+	let copy = [...boxes];
+
+	let anySquareMoved = false;
+
+	for (let i = 0; i < config.amountOfBoxes.value; i++) {
+		let newCoordinates = move(copy[i].x, copy[i].y, config);
+		if (
+			(!anySquareMoved && copy[i].x !== newCoordinates.x) ||
+			copy[i].y !== newCoordinates.y
+		) {
+			anySquareMoved = true;
+		}
+		copy[i] = newCoordinates;
+	}
+	if (anySquareMoved && isSoundOn) {
+		const audio = new Audio("@/../cartoon-jump-6462.mp3");
+		audio.play();
+	}
+
+	setBoxes(copy);
+};
+interface Box {
+	x: number;
+	y: number;
+}
+const generateBoxes = (config: Config, prevBoxes?: Box[]): Box[] => {
+	let result: Box[] = [];
+
+	if (prevBoxes) {
+		if (config.amountOfBoxes.value === prevBoxes.length) return prevBoxes;
+		if (config.amountOfBoxes.value > prevBoxes.length) {
+			let maxX = config.containerDimensionX.value - config.boxSize.value;
+			let maxY = config.containerDimensionY.value - config.boxSize.value;
+			for (let i = prevBoxes.length; i < config.amountOfBoxes.value; i++) {
+				result.push({
+					x: getRandomNumber(0, maxX),
+					y: getRandomNumber(0, maxY),
+				});
+			}
+			return result.concat(prevBoxes);
+		}
+		if (config.amountOfBoxes.value < prevBoxes.length)
+			return prevBoxes.slice(0, config.amountOfBoxes.value);
+	}
+
+	for (let i = 0; i < config.amountOfBoxes.value; i++) {
+		result.push({
+			x: 0 * i * config.boxSize.value,
+			y: 0 * i * config.boxSize.value,
+		});
+	}
+	return result;
+};
+
+type ConfigKey = keyof Config;
+
+const reArrangeBoxesOnResize = (boxes: Box[], config: Config) => {
+	console.log(config);
+	const maxX = getMaxX(config);
+	const maxY = getMaxY(config);
+	for (let i = 0; i < boxes.length; i++) {
+		if (boxes[i].x > maxX) boxes[i].x = maxX;
+		if (boxes[i].y > maxY) boxes[i].y = maxY;
+	}
+
+	console.log(boxes);
+	return boxes;
+};
 
 export default function Home() {
-  return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+	const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
+	const [boxes, setBoxes] = useState<Box[]>(generateBoxes(config));
+	const [on, setOn] = useState<boolean>(true);
+	const [soundOn, setSoundOn] = useState<boolean>(false);
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+	useEffect(() => {
+		setBoxes(generateBoxes(config, boxes));
+	}, [config.amountOfBoxes.value]);
 
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
+	useEffect(() => {
+		const intervalId = setInterval(() => {
+			if (on) setter(boxes, setBoxes, config, soundOn);
+		}, 10000 / config.speed.value);
+		return () => clearInterval(intervalId); // Cleanup the interval on component unmount
+	}, [boxes, config, on]);
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+	return (
+		<div>
+			<div className={styles.sidebar}>
+				<div className={styles.config}>
+					<div style={{ display: "flex", gap: "20px" }}>
+						<label style={{ display: "flex", gap: "20px", cursor: "pointer" }}>
+							<div className={styles.switch}>
+								<input
+									onChange={() => setOn(!on)}
+									checked={on}
+									type="checkbox"
+								/>
+								<span className={styles.slider} />
+							</div>
+							On / Off
+						</label>
+						<label style={{ display: "flex", gap: "20px", cursor: "pointer" }}>
+							<div className={styles.switch}>
+								<input
+									onChange={() => setSoundOn(!soundOn)}
+									checked={soundOn}
+									type="checkbox"
+								/>
+								<span className={styles.slider} />
+							</div>
+							Sound On / Off
+						</label>
+					</div>
+					{Object.keys(config).map((key, i: number) => (
+						<div key={i} style={{ display: "flex", flexDirection: "column" }}>
+							<label className={styles.configLabel}>
+								{config[key as ConfigKey].label}
+							</label>
+							<input
+								type="range"
+								placeholder={config[key as ConfigKey].label}
+								min={config[key as ConfigKey].min}
+								max={config[key as ConfigKey].max}
+								step={1}
+								onChange={(e) => {
+									let configCopy = {
+										...config,
+										[key as ConfigKey]: {
+											...config[key as ConfigKey],
+											value: Number(e.target.value),
+										},
+									};
+									if (
+										key === "boxSize" ||
+										key === "containerDimensionX" ||
+										key === "containerDimensionY"
+									) {
+										setBoxes(reArrangeBoxesOnResize(boxes, configCopy));
+									}
+									setConfig({
+										...config,
+										[key as ConfigKey]: {
+											...config[key as ConfigKey],
+											value: Number(e.target.value),
+										},
+									});
+								}}
+								value={config[key as ConfigKey].value}
+							/>
+							<span style={{ fontSize: "13px" }}>
+								{config[key as ConfigKey].value}
+							</span>
+						</div>
+					))}
+				</div>
+				<div className={styles.stats}>
+					{boxes.map((box, i) => (
+						<span key={i}>
+							Box {i + 1}: X: {box.x}; Y: {box.y};
+						</span>
+					))}
+				</div>
+			</div>
+			<main className={styles.main}>
+				<div
+					className={styles.container}
+					style={{
+						width: `${config.containerDimensionX.value}px`,
+						height: `${config.containerDimensionY.value}px`,
+					}}
+				>
+					{boxes.map((box, i) => (
+						<div
+							className={styles.square}
+							style={{
+								left: `${box.x}px`,
+								bottom: `${box.y}px`,
+								width: `${config.boxSize.value}px`,
+								height: `${config.boxSize.value}px`,
+							}}
+							key={i}
+						/>
+					))}
+					<div>•</div>
+				</div>
+			</main>
+		</div>
+	);
 }
